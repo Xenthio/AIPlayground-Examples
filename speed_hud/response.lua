@@ -1,32 +1,34 @@
 -- PLAN: CLIENT, add a speedometer to the EHUD left column.
--- Shows player velocity (XY plane) as a numeric display, HL2-styled.
--- Uses EHUD.RegisterLeftColumn + EHUD.AddToColumn pattern (NOT base_element).
--- Pulses bright on speed change using HL2Hud.Anim.
-if SERVER then return end
-
+-- Registers a new left column "speed" and sets base_element to a numeric display.
+-- Shows XY velocity in units/sec. Pulses on speed change. Uses HL2Hud.Colors.
 RunClientLua([==[
 local A = HL2Hud.Anim
+local C = HL2Hud.Colors
 
 local state = {
-    fgColor  = A.make(HL2Hud.Colors.FgColor),
-    fgGlow   = A.make(Color(0,0,0,0)),
-    lastSpeed = -1,
+    fgColor = A.make(C.FgColor),
+    bgColor = A.make(Color(0,0,0,0)),
+    blur    = A.make(0),
 }
 
+local lastSpeed = -1
+
 local function onSpeedChange()
-    local C = HL2Hud.Colors
-    A.set(state.fgColor, C.BrightFg,  "Linear",  0,    0.1)
-    A.set(state.fgColor, C.FgColor,   "Deaccel", 0.1,  0.5)
-    A.set(state.fgGlow,  C.BrightFg,  "Linear",  0,    0.1)
-    A.set(state.fgGlow,  Color(0,0,0,0), "Deaccel", 0.1, 0.5)
+    A.set(state.fgColor, C.BrightFg,       "Linear",  0,   0.1)
+    A.set(state.fgColor, C.FgColor,         "Deaccel", 0.1, 0.5)
+    A.set(state.bgColor, C.BgColor,         "Linear",  0,   0.1)
+    A.set(state.bgColor, Color(0,0,0,0),    "Linear",  0.1, 2.0)
+    A.set(state.blur,    1,                 "Linear",  0,   0.1)
+    A.set(state.blur,    0,                 "Deaccel", 0.1, 0.5)
 end
 
 hook.Add("HL2Hud_ColorsChanged", "SpeedHud_Colors", function()
-    A.snap(state.fgColor, HL2Hud.Colors.FgColor)
-    A.snap(state.fgGlow,  Color(0,0,0,0))
+    C = HL2Hud.Colors
+    A.snap(state.fgColor, C.FgColor)
 end)
 
 local elem = {}
+
 function elem:GetSize()
     local s = ScrH() / 480
     return 102*s, 36*s
@@ -37,24 +39,22 @@ function elem:Draw(x, y)
     if not IsValid(ply) then return end
 
     A.step(state.fgColor)
-    A.step(state.fgGlow)
+    A.step(state.bgColor)
+    A.step(state.blur)
 
     local vel   = ply:GetVelocity()
     local speed = math.Round(Vector(vel.x, vel.y, 0):Length())
 
-    if speed ~= state.lastSpeed then
+    if speed ~= lastSpeed then
+        lastSpeed = speed
         onSpeedChange()
-        state.lastSpeed = speed
     end
 
-    HL2Hud.DrawNumericDisplay(x, y, "SPEED", speed, state, {
-        label = "UPS",
-    })
+    return HL2Hud.DrawNumericDisplay(x, y, "SPEED", speed, state)
 end
 
--- Register as a new left column element, priority 25 (below health=100, suit=90)
 EHUD.RegisterLeftColumn("speed", 102, nil, 25)
-EHUD.AddToColumn("speed", "speed_display", elem, 1)
+local col = EHUD.GetColumn("speed")
+if col then col.base_element = elem end
 ]==])
-
-Player({{ID}}):ChatPrint("Speed HUD active — shows velocity in the left column.")
+Player({{ID}}):ChatPrint("Speed HUD active.")

@@ -1,24 +1,34 @@
--- PLAN: CLIENT, add an oxygen meter to the EHUD right column.
--- Only visible when underwater (WaterLevel >= 3). Uses AddToColumn / RemoveFromColumn
--- to dynamically add/remove itself so it doesn't take up space when not needed.
--- NOTE: EHUD.AddToColumn adds an element to a column's vstack.
---       EHUD.RemoveFromColumn removes it cleanly (do NOT pass nil as the obj).
-if SERVER then return end
-
+-- PLAN: CLIENT, add an oxygen/drowning meter to the EHUD right column.
+-- Only visible when underwater — dynamically added/removed from the column.
+-- Uses EHUD.RegisterRightColumn + base_element pattern like other HUD elements.
+-- Shows a numeric % display that turns red when oxygen is low.
 RunClientLua([==[
 local A = HL2Hud.Anim
+local C = HL2Hud.Colors
 
 local state = {
-    fgColor = A.make(HL2Hud.Colors.FgColor),
-    fgGlow  = A.make(Color(0,0,0,0)),
+    fgColor = A.make(C.FgColor),
+    bgColor = A.make(Color(0,0,0,0)),
+    blur    = A.make(0),
 }
 
+local oxygen    = 100
+local lastOxy   = 100
+local lastWater = false
+
 hook.Add("HL2Hud_ColorsChanged", "OxygenHud_Colors", function()
-    A.snap(state.fgColor, HL2Hud.Colors.FgColor)
+    C = HL2Hud.Colors
+    A.snap(state.fgColor, C.FgColor)
 end)
 
-local inColumn  = false
-local lastOxygen = -1
+local function onOxygenChange(oxy)
+    local col = oxy < 25 and C.DamagedFg or C.FgColor
+    A.set(state.fgColor, col,            "Linear",  0,   0.1)
+    A.set(state.bgColor, C.BgColor,      "Linear",  0,   0.1)
+    A.set(state.bgColor, Color(0,0,0,0), "Linear",  0.1, 2.0)
+    A.set(state.blur,    1,              "Linear",  0,   0.1)
+    A.set(state.blur,    0,              "Deaccel", 0.1, 0.5)
+end
 
 local elem = {}
 
@@ -32,63 +42,49 @@ function elem:Draw(x, y)
     if not IsValid(ply) then return end
 
     A.step(state.fgColor)
-    A.step(state.fgGlow)
+    A.step(state.bgColor)
+    A.step(state.blur)
 
-    local oxygen = math.Clamp(ply:GetNWInt("Oxygen", 100), 0, 100)
-
-    -- Flash red when low
-    if oxygen ~= lastOxygen then
-        lastOxygen = oxygen
-        local C = HL2Hud.Colors
-        if oxygen < 25 then
-            A.set(state.fgColor, C.DamagedFg, "Linear", 0, 0.1)
-        else
-            A.set(state.fgColor, C.FgColor,   "Linear", 0, 0.2)
-        end
+    -- Drain oxygen while submerged
+    if ply:WaterLevel() >= 3 then
+        oxygen = math.max(0, oxygen - FrameTime() * 8)
+    else
+        oxygen = math.min(100, oxygen + FrameTime() * 20)
     end
 
-    HL2Hud.DrawNumericDisplay(x, y, "OXYGEN", oxygen, state, { label = "%" })
+    local oxy = math.Round(oxygen)
+    if oxy ~= lastOxy then
+        lastOxy = oxy
+        onOxygenChange(oxy)
+    end
+
+    return HL2Hud.DrawNumericDisplay(x, y, "OXYGEN", oxy, state, { label = "%" })
 end
 
--- Register right column (ammo column already exists; this stacks above it)
+-- Register right column and attach element.
+-- Element's Draw returning nil when not underwater would work too,
+-- but GetSize returning 0 height hides it cleanly from the stack.
+local visElem = {}
+local visible = false
+
+function visElem:GetSize()
+    if not visible then return 136*(ScrH()/480), 0 end
+    return elem:GetSize()
+end
+
+function visElem:Draw(x, y)
+    if not visible then return end
+    return elem:Draw(x, y)
+end
+
+hook.Add("Think", "OxygenHud_Visibility", function()
+    local ply = LocalPlayer()
+    if not IsValid(ply) then return end
+    visible = ply:WaterLevel() >= 3
+end)
+
 EHUD.RegisterRightColumn("oxygen", 136, nil, 5)
-
-hook.Add("Think", "OxygenHud_Toggle", function()
-    local ply = LocalPlayer()
-    if not IsValid(ply) then return end
-
-    local underwater = ply:WaterLevel() >= 3
-
-    if underwater and not inColumn then
-        EHUD.AddToColumn("oxygen", "oxygen_meter", elem, 1)
-        inColumn = true
-    elseif not underwater and inColumn then
-        EHUD.RemoveFromColumn("oxygen", "oxygen_meter")
-        inColumn = false
-    end
-end)
-
--- GMod tracks oxygen as a player variable — hook into damage to update it
-hook.Add("EntityTakeDamage", "OxygenHud_Track", function(ent, dmginfo)
-    if ent ~= LocalPlayer() then return end
-    if dmginfo:IsDamageType(DMG_DROWN) then
-        local ply = LocalPlayer()
-        local cur = ply:GetNWInt("Oxygen", 100)
-        ply:SetNWInt("Oxygen", math.max(0, cur - 10))
-    end
-end)
-
--- Reset on surface
-hook.Add("Think", "OxygenHud_Regen", function()
-    local ply = LocalPlayer()
-    if not IsValid(ply) then return end
-    if ply:WaterLevel() < 3 then
-        local cur = ply:GetNWInt("Oxygen", 100)
-        if cur < 100 then
-            ply:SetNWInt("Oxygen", math.min(100, cur + FrameTime() * 20))
-        end
-    end
-end)
+local col = EHUD.GetColumn("oxygen")
+if col then col.base_element = visElem end
 ]==])
-
-Player({{ID}}):ChatPrint("Oxygen HUD active — appears in right column when underwater.")
+Player({{ID}}):ChatPrint("Oxygen HUD active — appears in the right column when underwater.")
