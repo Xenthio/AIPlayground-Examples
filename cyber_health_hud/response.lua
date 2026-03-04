@@ -94,11 +94,11 @@ function suitElem:Draw() end
 -- Override HL2Hud.DrawPanel so the rest of the HUD panels match the cyber theme
 HL2Hud.DrawPanel = function(x, y, w, h, col)
     local C = HL2Hud.Colors
-    local borderCol = col or C.BgColor
-    -- Dark background + colored outline
-    surface.SetDrawColor(0, 0, 0, 140)
+    local bg = col or C.BgColor
+    -- Dark background using passed color alpha, then FgColor outline
+    surface.SetDrawColor(0, 0, 0, bg.a or 140)
     surface.DrawRect(x, y, w, h)
-    surface.SetDrawColor(borderCol.r, borderCol.g, borderCol.b, 120)
+    surface.SetDrawColor(C.FgColor.r, C.FgColor.g, C.FgColor.b, 80)
     surface.DrawOutlinedRect(x, y, w, h, 1)
 end
 
