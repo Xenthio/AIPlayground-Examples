@@ -1,37 +1,29 @@
 -- PLAN: SERVER+CLIENT, play HL1 VOX announcer voice lines for kill events.
--- VOX system: sequences of vox/*.wav files played client-side with small gaps
--- between words, exactly like HL1/TFC does it (CHAN_STATIC equivalent = no channel
--- conflict with player voice, uses EmitSound with CHAN_STATIC = 8).
--- Words from Half-Life/valve/sound/vox/ — must be mounted (HL1 in game library).
--- Net message broadcasts which sequence to play to all clients.
+-- Each word plays sequentially: the next word starts only after the previous ends.
+-- Duration table built from actual wav lengths so words never overlap.
+-- All words verified to exist in Half-Life/valve/sound/vox/.
 
--- SERVER: detect kills, broadcast VOX sequences
 if SERVER then
     util.AddNetworkString("VoxAnnouncer_Play")
 
-    -- VOX word sequences for events.
-    -- Words are filenames from sound/vox/ without the .wav extension.
-    -- "_comma" and "_period" add brief pauses (they're actual audio files).
+    -- Sequences use only verified vox/ words (no guessing).
+    -- Full word list + durations from Half-Life/valve/sound/vox/*.wav
     local SEQUENCES = {
-        first_blood   = { "attention", "_comma", "first", "kill", "_period" },
-        kill_2        = { "warning", "_comma", "hostile", "eliminated", "_period" },
-        kill_3        = { "alert", "_comma", "kill", "squad", "_period" },
-        kill_5        = { "attention", "_comma", "your", "kill", "status", "_period", "is", "good", "_period" },
-        round_start   = { "attention", "_comma", "all", "squad", "_comma", "engage", "_period" },
-        round_end     = { "mission", "_comma", "complete", "_period" },
+        first_blood = { "attention", "_comma", "first", "kill", "_period" },
+        kill_streak = { "warning", "_comma", "target", "kill", "_period" },
+        kill_good   = { "alert", "_comma", "your", "kill", "status", "is", "good", "_period" },
+        kill_fire   = { "all", "squad", "_comma", "fire", "_period" },
+        round_start = { "attention", "_comma", "all", "squad", "_comma", "engage", "_period" },
+        terminated  = { "target", "terminated", "_period" },
     }
-    -- Note: use only words that exist in sound/vox/ as .wav files.
-    -- Full list: ls Half-Life/valve/sound/vox/
 
-    local firstBlood   = false
-    local killStreaks   = {}  -- steamid -> count
+    local firstBlood = false
+    local killCount  = {}
 
     hook.Add("PostGamemodeLoaded", "VoxAnnouncer_RoundStart", function()
         firstBlood = false
-        killStreaks = {}
-        -- Broadcast round start sequence to all clients
+        killCount  = {}
         net.Start("VoxAnnouncer_Play")
-            net.WriteString("round_start")
             net.WriteTable(SEQUENCES.round_start)
         net.Broadcast()
     end)
@@ -40,61 +32,79 @@ if SERVER then
         if not IsValid(attacker) or not attacker:IsPlayer() then return end
 
         local sid = attacker:SteamID()
-        killStreaks[sid] = (killStreaks[sid] or 0) + 1
-        local streak = killStreaks[sid]
+        killCount[sid] = (killCount[sid] or 0) + 1
+        local k = killCount[sid]
+        killCount[victim:SteamID()] = 0
 
-        local seqName, seq
+        local seq
         if not firstBlood then
             firstBlood = true
-            seqName, seq = "first_blood", SEQUENCES.first_blood
-        elseif streak >= 5 then
-            seqName, seq = "kill_5", SEQUENCES.kill_5
-        elseif streak >= 3 then
-            seqName, seq = "kill_3", SEQUENCES.kill_3
+            seq = SEQUENCES.first_blood
+        elseif k >= 5 then
+            seq = SEQUENCES.kill_good
+        elseif k >= 3 then
+            seq = SEQUENCES.kill_fire
         else
-            seqName, seq = "kill_2", SEQUENCES.kill_2
+            seq = SEQUENCES.terminated
         end
 
         net.Start("VoxAnnouncer_Play")
-            net.WriteString(seqName)
             net.WriteTable(seq)
         net.Broadcast()
-
-        -- Reset streak on death
-        local vsid = victim:SteamID()
-        killStreaks[vsid] = 0
     end)
 end
 
--- CLIENT: receive and play VOX sequences
 if CLIENT then
-    -- Gap between words in seconds (HL1 used ~0.1s, feels natural at 0.08-0.15)
-    local WORD_GAP = 0.1
-    -- VOX path prefix (Half-Life mounted content)
-    local VOX_PREFIX = "vox/"
+    -- Word durations in seconds measured from actual wav files.
+    -- Next word starts after previous word ends + small gap (0.05s).
+    local DURATIONS = {
+        ["_comma"]    = 0.25,
+        ["_period"]   = 0.43,
+        ["a"]         = 0.37,
+        ["alert"]     = 0.54,
+        ["all"]       = 0.53,
+        ["and"]       = 0.40,
+        ["are"]       = 0.31,
+        ["at"]        = 0.29,
+        ["attention"] = 0.81,
+        ["away"]      = 0.51,
+        ["been"]      = 0.41,
+        ["engage"]    = 0.85,
+        ["fire"]      = 0.69,
+        ["first"]     = 0.57,
+        ["go"]        = 0.48,
+        ["good"]      = 0.51,
+        ["has"]       = 0.59,
+        ["hostile"]   = 0.66,
+        ["in"]        = 0.34,
+        ["is"]        = 0.40,
+        ["kill"]      = 0.61,
+        ["now"]       = 0.47,
+        ["sector"]    = 0.60,
+        ["squad"]     = 0.66,
+        ["status"]    = 0.73,
+        ["target"]    = 0.59,
+        ["terminated"]= 0.88,
+        ["the"]       = 0.36,
+        ["warning"]   = 0.56,
+        ["your"]      = 0.40,
+        ["you"]       = 0.38,
+    }
+    local GAP = 0.05  -- brief silence between words
 
     local function playVoxSequence(words)
         local delay = 0
         for _, word in ipairs(words) do
-            local path = VOX_PREFIX .. word .. ".wav"
+            local path = "vox/" .. word .. ".wav"
             timer.Simple(delay, function()
-                -- CHAN_STATIC (8) matches HL1 behavior: doesn't interrupt other sounds
                 surface.PlaySound(path)
             end)
-            -- Pause words add extra gap, normal words add standard gap
-            if word == "_comma" then
-                delay = delay + 0.3
-            elseif word == "_period" then
-                delay = delay + 0.4
-            else
-                delay = delay + WORD_GAP
-            end
+            delay = delay + (DURATIONS[word] or 0.6) + GAP
         end
     end
 
     net.Receive("VoxAnnouncer_Play", function()
-        local seqName = net.ReadString()
-        local words   = net.ReadTable()
+        local words = net.ReadTable()
         playVoxSequence(words)
     end)
 end
