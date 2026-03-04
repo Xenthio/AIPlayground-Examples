@@ -1,8 +1,9 @@
 -- PLAN: CLIENT, show a cycling fun facts display in the top-left corner.
--- Draws directly in HUDPaint — no EHUD column needed for corner overlays.
--- NOTE: This example uses HL2 styling (HL2Hud fonts/colors/DrawPanel) but you
---       don't have to! Corner overlays can use any fonts, colors, or drawing style
---       you like — just hook HUDPaint and draw at the screen position you want.
+-- Uses EHUD.AddToZone("topleft", ...) so it stacks with other corner elements
+-- and never overlaps. To use a different corner: "topright" or "center".
+-- NOTE: The HL2 styling here (HL2Hud fonts/colors/DrawPanel) is optional —
+--       you can draw however you like inside elem:Draw(). The zone system just
+--       handles positioning and stacking.
 RunClientLua([==[
 local FACTS = {
     "A shrimp's heart is in its head.",
@@ -19,64 +20,28 @@ local FACTS = {
     "Cleopatra lived closer in time to the Moon landing than to the construction of the Great Pyramid.",
 }
 
-local CYCLE_TIME = 6   -- seconds per fact
-local FADE_TIME  = 0.4 -- fade in/out duration
+local CYCLE_TIME = 6
+local FADE_TIME  = 0.4
 
 local currentIdx = math.random(#FACTS)
-local nextIdx    = nil
+local nextIdx    = currentIdx % #FACTS + 1
 local cycleStart = CurTime()
-local alpha      = 0   -- 0..255
-local fading     = "in"  -- "in" | "hold" | "out"
 local fadeStart  = CurTime()
+local fading     = "in"
+local alpha      = 0
 
-local function nextFact()
-    repeat nextIdx = math.random(#FACTS) until nextIdx ~= currentIdx
+local function advanceFact()
+    currentIdx = nextIdx
+    nextIdx    = currentIdx % #FACTS + 1
 end
-nextFact()
 
-hook.Add("HUDPaint", "FunFactsHud", function()
-    if not HL2Hud.enabled then return end  -- respects hl2hud_toggle
-
-    local now = CurTime()
-    local s   = ScrH() / 480
-
-    -- State machine: fade in → hold → fade out → advance → fade in
-    if fading == "in" then
-        local t = math.Clamp((now - fadeStart) / FADE_TIME, 0, 1)
-        alpha = math.Round(t * 220)
-        if t >= 1 then fading = "hold"; cycleStart = now end
-
-    elseif fading == "hold" then
-        alpha = 220
-        if now - cycleStart >= CYCLE_TIME then
-            fading = "out"; fadeStart = now
-        end
-
-    elseif fading == "out" then
-        local t = math.Clamp((now - fadeStart) / FADE_TIME, 0, 1)
-        alpha = math.Round((1 - t) * 220)
-        if t >= 1 then
-            currentIdx = nextIdx
-            nextFact()
-            fading = "in"; fadeStart = now
-        end
-    end
-
-    local C    = HL2Hud.Colors
-    local pad  = math.Round(8 * s)
-    local maxW = math.Round(280 * s)
-
-    -- Measure text to size the panel
-    surface.SetFont("HL2Hud_Text")
-    local tw, th = surface.GetTextSize(FACTS[currentIdx])
-    -- Wrap long facts to maxW
-    local lines = {}
-    local words = string.Explode(" ", FACTS[currentIdx])
-    local line  = ""
+local function getLines(text, maxW, font)
+    surface.SetFont(font)
+    local words = string.Explode(" ", text)
+    local lines, line = {}, ""
     for _, word in ipairs(words) do
         local test = line == "" and word or (line .. " " .. word)
-        local lw   = surface.GetTextSize(test)
-        if lw > maxW - pad*2 and line ~= "" then
+        if surface.GetTextSize(test) > maxW and line ~= "" then
             table.insert(lines, line)
             line = word
         else
@@ -84,32 +49,59 @@ hook.Add("HUDPaint", "FunFactsHud", function()
         end
     end
     if line ~= "" then table.insert(lines, line) end
+    return lines
+end
 
-    local lineH = math.Round(10 * s)
-    local boxW  = maxW
-    local boxH  = math.Round(14*s) + #lines * lineH + pad
+local elem = {}
 
-    -- Top-left corner position (change these to put it in any corner)
-    -- Top-right:   x = ScrW() - boxW - pad
-    -- Bottom-left: y = ScrH() - boxH - pad
-    local bx = pad
-    local by = pad
+function elem:GetSize()
+    local s = ScrH() / 480
+    return math.Round(280 * s), math.Round(48 * s)
+end
 
-    -- Draw panel background (HL2-styled — swap this for any style you want)
-    HL2Hud.DrawPanel(bx, by, boxW, boxH, Color(C.BgColor.r, C.BgColor.g, C.BgColor.b, math.Round(alpha * 0.5)))
+function elem:Draw(x, y)
+    local now = CurTime()
+    local s   = ScrH() / 480
 
-    -- "DID YOU KNOW?" header
-    local col = Color(C.FgColor.r, C.FgColor.g, C.FgColor.b, alpha)
-    draw.SimpleText("DID YOU KNOW?", "HL2Hud_Text", bx + pad, by + pad, col)
-
-    -- Fact lines
-    surface.SetFont("HL2Hud_Text")
-    for i, l in ipairs(lines) do
-        local lCol = Color(255, 255, 255, alpha)
-        draw.SimpleText(l, "HL2Hud_Text",
-            bx + pad, by + pad + math.Round(12*s) + (i-1) * lineH, lCol)
+    -- Fade state machine
+    if fading == "in" then
+        alpha = math.Clamp((now - fadeStart) / FADE_TIME, 0, 1) * 220
+        if alpha >= 219 then fading = "hold"; cycleStart = now end
+    elseif fading == "hold" then
+        alpha = 220
+        if now - cycleStart >= CYCLE_TIME then fading = "out"; fadeStart = now end
+    elseif fading == "out" then
+        alpha = (1 - math.Clamp((now - fadeStart) / FADE_TIME, 0, 1)) * 220
+        if alpha <= 1 then advanceFact(); fading = "in"; fadeStart = now end
     end
-end)
+
+    local C    = HL2Hud.Colors
+    local pad  = math.Round(6 * s)
+    local w, h = self:GetSize()
+    local font = "HL2Hud_Text"
+    local lineH = math.Round(10 * s)
+    local lines = getLines(FACTS[currentIdx], w - pad * 2, font)
+
+    -- Resize height to fit wrapped text
+    h = pad * 2 + math.Round(12 * s) + #lines * lineH
+
+    HL2Hud.DrawPanel(x, y, w, h,
+        Color(C.BgColor.r, C.BgColor.g, C.BgColor.b, math.Round(alpha * 0.5)))
+
+    draw.SimpleText("DID YOU KNOW?", font,
+        x + pad, y + pad,
+        Color(C.FgColor.r, C.FgColor.g, C.FgColor.b, math.Round(alpha)))
+
+    for i, line in ipairs(lines) do
+        draw.SimpleText(line, font,
+            x + pad, y + pad + math.Round(12 * s) + (i - 1) * lineH,
+            Color(255, 255, 255, math.Round(alpha)))
+    end
+end
+
+-- AddToZone stacks elements in a corner without overlapping.
+-- Change "topleft" to "topright" or "center" for a different position.
+EHUD.AddToZone("topleft", "fun_facts", elem, 10)
+]==])
 
 Player({{ID}}):ChatPrint("Fun facts HUD active — top left corner, cycles every 6 seconds.")
-]==])
