@@ -1,0 +1,5 @@
+{
+  "prompt": "Show a fun facts display in the top left corner of the screen, cycling through random facts every few seconds, styled like the HL2 HUD. Can be placed in any corner of the screen.",
+  "tags": "hud top left corner fun facts text display cycling screen corner ui overlay hl2",
+  "toolcalls": []
+}
