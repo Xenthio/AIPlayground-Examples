@@ -1,7 +1,7 @@
 -- PLAN: SERVER+CLIENT, play HL1 VOX announcer voice lines for kill events.
 -- Each word plays sequentially using actual wav durations so nothing overlaps.
 -- All words verified to exist in Half-Life/valve/sound/vox/.
-
+RunSharedLua([==[
 if SERVER then
     util.AddNetworkString("VoxAnnouncer_Play")
 
@@ -185,3 +185,4 @@ if CLIENT then
         playVoxSequence(net.ReadTable())
     end)
 end
+]==])
