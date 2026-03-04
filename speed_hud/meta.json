@@ -1,0 +1,5 @@
+{
+  "prompt": "Add a speedometer HUD element to the ExtensibleHUD left column showing the player's current velocity in units per second, styled like the HL2 numeric displays",
+  "tags": "hud speed velocity speedometer numeric display hl2 ehud left column",
+  "toolcalls": []
+}

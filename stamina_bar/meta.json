@@ -1,0 +1,5 @@
+{
+  "prompt": "Replace the HL2 suit power bar with a custom stamina bar that shows a chunked progress bar labelled STAMINA, draining as the player sprints and regenerating when they stop",
+  "tags": "hud stamina sprint suitpower aux bar chunked ehud base_element replace",
+  "toolcalls": []
+}

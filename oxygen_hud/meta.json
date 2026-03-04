@@ -1,0 +1,5 @@
+{
+  "prompt": "Add an oxygen/drowning meter to the HUD that appears in the right column when the player is underwater, filling down as they run out of air",
+  "tags": "hud oxygen drowning underwater meter right column ehud animated",
+  "toolcalls": []
+}
