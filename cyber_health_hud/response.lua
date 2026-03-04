@@ -35,11 +35,14 @@ function healthElem:Draw(x, y, clip_h)
     local C = HL2Hud.Colors
     local hpCol = (hp <= 25) and C.DamagedFg or C.FgColor
 
-    -- Background: override HL2Hud.DrawPanel for cyber look
+    -- Background: use shared DrawPanel (draws dark bg + FgColor outline)
+    -- Damage flash overrides outline color
     HL2Hud.DrawPanel(x, y, w, h, Color(0, 0, 0, 150))
-    surface.SetDrawColor(C.FgColor.r, C.FgColor.g, C.FgColor.b,
-                         50 + damageFlash * 100)
-    surface.DrawOutlinedRect(x, y, w, h, math.max(1, math.Round(s)))
+    if damageFlash > 0 then
+        surface.SetDrawColor(C.FgColor.r, C.FgColor.g, C.FgColor.b,
+                             math.Round((50 + damageFlash * 100)))
+        surface.DrawOutlinedRect(x, y, w, h, math.max(1, math.Round(s)))
+    end
 
     -- Health number + label
     draw.SimpleText(math.ceil(lerpHP), "HL2Hud_NumbersSmall",
