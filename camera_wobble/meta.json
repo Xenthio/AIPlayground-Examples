@@ -1,0 +1,5 @@
+{
+  "prompt": "Make the camera wobble for 5 seconds",
+  "tags": "camera roll wobble shake calcview angles client view",
+  "toolcalls": []
+}

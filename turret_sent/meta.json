@@ -1,0 +1,7 @@
+{
+  "prompt": "Make a turret entity that shoots nearby enemies",
+  "tags": "sent scripted entity turret shoot automatic npc enemy",
+  "toolcalls": [
+    { "tool": "is_valid_model", "args": "models/props_lab/lab_magnifyingglass.mdl", "result": { "valid": true } }
+  ]
+}

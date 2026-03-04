@@ -1,0 +1,5 @@
+{
+  "prompt": "Add an extended ammo display above the native HL2 ammo in the ExtensibleHUD right stack. Show weapon name, clip, reserve, and secondary ammo. Pulse yellow on weapon switch, turn red when empty.",
+  "tags": "ui hud ammo weapon clip reserve secondary hl2 extensible right stack",
+  "toolcalls": []
+}

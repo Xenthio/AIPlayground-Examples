@@ -1,0 +1,5 @@
+{
+  "prompt": "make a breakable wood crate that shatters into debris gibs when destroyed",
+  "tags": "breakable crate wood debris gib hl1 func_breakable gilbutils prop",
+  "toolcalls": []
+}

@@ -1,0 +1,7 @@
+{
+  "prompt": "Spawn a random piece of furniture in front of me",
+  "tags": "spawn prop random furniture search find model",
+  "toolcalls": [
+    { "tool": "search_files", "args": "models/props_interiors/furniture_*.mdl", "result": { "files": ["furniture_chair01a.mdl", "furniture_chair03a.mdl", "furniture_couch01a.mdl", "furniture_couch02a.mdl", "furniture_desk01a.mdl", "furniture_shelf01a.mdl"], "dirs": [] } }
+  ]
+}

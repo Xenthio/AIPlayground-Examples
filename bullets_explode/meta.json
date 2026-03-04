@@ -1,0 +1,5 @@
+{
+  "prompt": "Make all bullets explode on impact",
+  "tags": "hook bullets explosion damage callback EntityFireBullets",
+  "toolcalls": []
+}

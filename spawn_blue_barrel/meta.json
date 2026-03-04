@@ -1,0 +1,7 @@
+{
+  "prompt": "Spawn a blue barrel in front of me",
+  "tags": "spawn prop color physics eye trace position",
+  "toolcalls": [
+    { "tool": "is_valid_model", "args": "models/props_borealis/bluebarrel001.mdl", "result": { "valid": true } }
+  ]
+}

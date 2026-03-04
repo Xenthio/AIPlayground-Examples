@@ -1,0 +1,7 @@
+{
+  "prompt": "Make particles shoot out of me",
+  "tags": "particles emitter client effect spark trail player position",
+  "toolcalls": [
+    { "tool": "is_valid_material", "args": "effects/spark", "result": { "valid": true } }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "prompt": "Create a sent that explodes into HL1 gibs when destroyed",
+  "tags": "gib gibs hl1 half-life physics bounce quake movetype_bounce",
+  "toolcalls": []
+}

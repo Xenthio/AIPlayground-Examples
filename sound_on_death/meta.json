@@ -1,0 +1,7 @@
+{
+  "prompt": "Play a sound when someone dies",
+  "tags": "sound play death kill hook event emitsound",
+  "toolcalls": [
+    { "tool": "search_files", "args": "sound/vo/npc/male01/pain*.wav", "result": { "files": ["pain01.wav", "pain02.wav", "pain03.wav", "pain04.wav", "pain05.wav", "pain06.wav", "pain07.wav", "pain08.wav", "pain09.wav"], "dirs": [] } }
+  ]
+}

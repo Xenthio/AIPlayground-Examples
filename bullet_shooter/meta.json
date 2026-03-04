@@ -1,0 +1,8 @@
+{
+  "prompt": "Make a SWEP that shoots bullets",
+  "tags": "swep weapon gun shoot bullets hitscan firebullets rifle pistol",
+  "toolcalls": [
+    { "tool": "is_valid_model", "args": "models/weapons/c_smg1.mdl", "result": { "valid": true } },
+    { "tool": "is_valid_model", "args": "models/weapons/w_smg1.mdl", "result": { "valid": true } }
+  ]
+}

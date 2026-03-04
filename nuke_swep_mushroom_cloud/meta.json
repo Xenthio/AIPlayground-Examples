@@ -1,0 +1,45 @@
+{
+	"tags": "nuke swep projectile",
+	"toolcalls": [
+		{
+			"result": {
+				"files": [
+					"c_rpg.mdl"
+				],
+				"directories": []
+			},
+			"args": {
+				"path": "models/weapons/c_rpg.mdl",
+				"pattern": "models/weapons/c_rpg.mdl"
+			},
+			"tool": "search_files"
+		},
+		{
+			"result": {
+				"files": [
+					"w_rocket_launcher.mdl"
+				],
+				"directories": []
+			},
+			"args": {
+				"path": "models/weapons/w_rocket_launcher.mdl",
+				"pattern": "models/weapons/w_rocket_launcher.mdl"
+			},
+			"tool": "search_files"
+		},
+		{
+			"result": {
+				"files": [
+					"ar2_grenade.mdl"
+				],
+				"directories": []
+			},
+			"args": {
+				"path": "models/Items/AR2_Grenade.mdl",
+				"pattern": "models/Items/AR2_Grenade.mdl"
+			},
+			"tool": "search_files"
+		}
+	],
+	"prompt": "make a nuke swep that makes a mushroom cloud"
+}

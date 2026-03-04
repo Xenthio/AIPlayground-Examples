@@ -1,0 +1,6 @@
+{
+  "title": "HUD Recolor",
+  "description": "Recolor the HL2 HUD by updating HL2Hud.Colors fields. Works live without reloading. If the HL2 HUD replacement isn't loaded yet (HL2Hud == nil), it's already built into GilbUtils and loads automatically.",
+  "tags": ["hud", "color", "ehud", "hl2hud", "style"],
+  "realm": "client"
+}

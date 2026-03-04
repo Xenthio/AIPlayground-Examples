@@ -1,0 +1,5 @@
+{
+  "prompt": "Make the screen go red for 10 seconds",
+  "tags": "screen overlay color hud client effect tint",
+  "toolcalls": []
+}

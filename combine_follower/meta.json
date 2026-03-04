@@ -1,0 +1,7 @@
+{
+  "prompt": "Spawn a combine soldier that follows me",
+  "tags": "npc spawn enemy combine soldier follow schedule",
+  "toolcalls": [
+    { "tool": "is_valid_model", "args": "models/combine_soldier.mdl", "result": { "valid": true } }
+  ]
+}

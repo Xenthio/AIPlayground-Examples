@@ -1,0 +1,9 @@
+{
+    "prompt": "Make a SWEP that shoots melons",
+    "tags": "swep weapon gun shoot projectile melon launcher",
+    "toolcalls": [
+        { "tool": "is_valid_model", "args": "models/props_junk/watermelon01.mdl", "result": { "valid": true } },
+        { "tool": "is_valid_model", "args": "models/weapons/c_pistol.mdl", "result": { "valid": true } },
+        { "tool": "is_valid_model", "args": "models/weapons/w_pistol.mdl", "result": { "valid": true } }
+  ]
+}
