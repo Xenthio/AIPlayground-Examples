@@ -1,0 +1,5 @@
+{
+  "prompt": "Show a compass HUD element that shows where other players are around you, like a radar strip at the top of the screen with player markers",
+  "tags": "compass radar hud players direction bearing top screen strip markers multiplayer utility ehud zone",
+  "toolcalls": []
+}

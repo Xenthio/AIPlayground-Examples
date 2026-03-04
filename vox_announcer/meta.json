@@ -1,0 +1,5 @@
+{
+  "prompt": "Play Half-Life 1 VOX announcer voice lines for kill events like 'first blood', kill streaks, and round start using the vox/ wav files",
+  "tags": "vox announcer half-life hl1 voice kill firstblood killstreak sound audio server client",
+  "toolcalls": []
+}

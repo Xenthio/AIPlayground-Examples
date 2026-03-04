@@ -1,0 +1,5 @@
+{
+  "prompt": "Show floating damage numbers above entities when they take damage, numbers pop up and float upward then fade out",
+  "tags": "damage numbers floating text 3d2d hud effect combat visual client server net",
+  "toolcalls": []
+}
