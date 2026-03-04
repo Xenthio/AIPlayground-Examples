@@ -35,8 +35,8 @@ function healthElem:Draw(x, y, clip_h)
     local C = HL2Hud.Colors
     local hpCol = (hp <= 25) and C.DamagedFg or C.FgColor
 
-    -- Background
-    draw.RoundedBox(0, x, y, w, h, Color(0, 0, 0, 150))
+    -- Background: override HL2Hud.DrawPanel for cyber look
+    HL2Hud.DrawPanel(x, y, w, h, Color(0, 0, 0, 150))
     surface.SetDrawColor(C.FgColor.r, C.FgColor.g, C.FgColor.b,
                          50 + damageFlash * 100)
     surface.DrawOutlinedRect(x, y, w, h, math.max(1, math.Round(s)))
@@ -90,6 +90,17 @@ end
 local suitElem = {}
 function suitElem:GetSize() local s=ScrH()/480 return 108*s, 0 end
 function suitElem:Draw() end
+
+-- Override HL2Hud.DrawPanel so the rest of the HUD panels match the cyber theme
+HL2Hud.DrawPanel = function(x, y, w, h, col)
+    local C = HL2Hud.Colors
+    local borderCol = col or C.BgColor
+    -- Dark background + colored outline
+    surface.SetDrawColor(0, 0, 0, 140)
+    surface.DrawRect(x, y, w, h)
+    surface.SetDrawColor(borderCol.r, borderCol.g, borderCol.b, 120)
+    surface.DrawOutlinedRect(x, y, w, h, 1)
+end
 
 local hCol = EHUD.GetColumn("health")
 local sCol = EHUD.GetColumn("suit")
