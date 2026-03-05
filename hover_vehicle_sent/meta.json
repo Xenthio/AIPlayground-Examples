@@ -1,0 +1,7 @@
+{
+  "prompt": "Make a driveable hover craft vehicle entity",
+  "tags": "sent scripted entity vehicle hover craft driveable fly wasd mount",
+  "toolcalls": [
+    { "tool": "is_valid_model", "args": "models/airboat.mdl", "result": { "valid": true } }
+  ]
+}
