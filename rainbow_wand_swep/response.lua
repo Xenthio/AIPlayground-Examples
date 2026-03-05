@@ -6,7 +6,7 @@
 RunSharedLua([[
 local SWEP_CLASS = "weapon_rainbow_wand"
 
-local SWEP = {}
+local SWEP = {Primary = {}, Secondary = {}} 
 SWEP.PrintName = "Rainbow Wand"
 SWEP.Author = "Gilb"
 SWEP.Instructions = "Left Click to fire a chaotic rainbow bolt!"
