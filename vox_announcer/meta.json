@@ -1,5 +1,11 @@
 {
   "prompt": "Play Half-Life 1 VOX announcer voice lines for kill events like 'first blood', kill streaks, and round start using the vox/ wav files",
   "tags": "vox announcer half-life hl1 voice kill firstblood killstreak sound audio server client",
-  "toolcalls": []
+  "toolcalls": [
+    {
+      "tool": "search_files",
+      "args": "sound/vox/*.wav",
+      "result": ["a.wav","accelerating.wav","activate.wav","activated.wav","alert.wav","all.wav","and.wav","apprehend.wav","approach.wav","are.wav","area.wav","at.wav","attention.wav","away.wav","been.wav","breach.wav","breached.wav","capture.wav","clear.wav","_comma.wav","deploy.wav","destroy.wav","destroyed.wav","detain.wav","down.wav","eight.wav","eliminate.wav","emergency.wav","engage.wav","engaged.wav","exterminate.wav","fire.wav","first.wav","five.wav","four.wav","freeman.wav","go.wav","good.wav","has.wav","hostile.wav","in.wav","is.wav","kill.wav","man.wav","move.wav","nine.wav","no.wav","not.wav","now.wav","objective.wav","of.wav","on.wav","one.wav","out.wav","perimeter.wav","_period.wav","proceed.wav","quick.wav","renegade.wav","roger.wav","search.wav","secure.wav","secured.wav","sector.wav","six.wav","squad.wav","status.wav","surrender.wav","target.wav","ten.wav","terminated.wav","that.wav","the.wav","threat.wav","three.wav","to.wav","two.wav","violation.wav","wanted.wav","warning.wav","wilco.wav","you.wav","your.wav","yourself.wav","zero.wav"]
+    }
+  ]
 }
