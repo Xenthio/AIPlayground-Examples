@@ -1,7 +1,52 @@
--- CLIENT — corrupt ALL textures: world, models, normal maps, blend textures, everything.
--- Every 0.5-1.5s a random texture slot gets hit with RAM corruption.
--- Run again to stop + restore.
-RunClientLua([==[
+-- SHARED — networked RAM corruption. Server picks slot+seed+mode, broadcasts to all clients.
+-- All players see identical corruption simultaneously.
+-- Run again to stop.
+RunSharedLua([==[
+
+local NET_MSG      = "TexCorruptor_Hit"
+local NET_MSG_STOP = "TexCorruptor_Stop"
+
+------------------------------------------------------------------------
+if SERVER then
+
+    if TexCorruptorServer then
+        TexCorruptorServer = false
+        util.AddNetworkString(NET_MSG_STOP)
+        net.Start(NET_MSG_STOP) net.Broadcast()
+        print("[TexCorruptor] Server stopped.")
+        return
+    end
+    TexCorruptorServer = true
+
+    util.AddNetworkString(NET_MSG)
+    util.AddNetworkString(NET_MSG_STOP)
+
+    local TICK_MIN = 0.5
+    local TICK_MAX = 1.5
+
+    local function serverTick()
+        if not TexCorruptorServer then return end
+        local seed     = math.random(0, 2147483647)
+        local slotIdx  = math.random(1, 9999)  -- clients clamp to their slot count
+        local mode     = math.random(1, 6)
+
+        net.Start(NET_MSG)
+            net.WriteUInt(seed,    32)
+            net.WriteUInt(slotIdx, 16)
+            net.WriteUInt(mode,    4)
+        net.Broadcast()
+
+        timer.Simple(math.random()*(TICK_MAX-TICK_MIN)+TICK_MIN, serverTick)
+    end
+
+    timer.Simple(0.5, serverTick)
+    print("[TexCorruptor] Server broadcasting corruption events.")
+    return
+end
+
+------------------------------------------------------------------------
+-- CLIENT
+
 if TexCorruptor then
     TexCorruptor.Stop()
     TexCorruptor = nil
@@ -11,26 +56,21 @@ end
 
 include("gilbutils/vtf.lua")
 
-print("[TexCorruptor] Scanning all textures...")
+print("[TexCorruptor] Scanning textures...")
 TexCorruptor = {}
 
-local RT_SIZE  = 512
-local TICK_MIN = 0.5
-local TICK_MAX = 1.5
+local RT_SIZE = 512
 
 ------------------------------------------------------------------------
--- Collect all unique DXT texture slots from all materials
--- Returns list of { mat, key, origTex, rt, info }
 local function collectFromMat(mat, slots, seen)
     if not mat or mat:IsError() then return end
-    -- Try every key in the material's keyvalue table
     local kv = mat:GetKeyValues()
     for key, _ in pairs(kv) do
         if key:sub(1,1) == "$" then
             local ok, tex = pcall(function() return mat:GetTexture(key) end)
             if ok and tex and not tex:IsError() then
                 local tname = tex:GetName()
-                local slotKey = tname .. "|" .. key
+                local slotKey = tname.."|"..key
                 if not seen[slotKey] then
                     seen[slotKey] = true
                     local vtf = file.Read("materials/"..tname..".vtf","GAME")
@@ -46,36 +86,24 @@ local function collectFromMat(mat, slots, seen)
     end
 end
 
-local seen  = {}
-local slots = {}
-
--- World materials
+local seen, slots = {}, {}
 local world = Entity(0)
 if world and world.GetMaterials then
-    for _, name in ipairs(world:GetMaterials()) do
-        collectFromMat(Material(name), slots, seen)
-    end
+    for _, name in ipairs(world:GetMaterials()) do collectFromMat(Material(name), slots, seen) end
 end
-
--- All entity materials
 for _, ent in ipairs(ents.GetAll()) do
-    -- Sub-materials (model surfaces)
     local mats = ent:GetMaterials()
-    if mats then
-        for _, name in ipairs(mats) do
-            if name ~= "" then collectFromMat(Material(name), slots, seen) end
-        end
-    end
-    -- Material override
+    if mats then for _, name in ipairs(mats) do
+        if name ~= "" then collectFromMat(Material(name), slots, seen) end
+    end end
     local ov = ent:GetMaterial()
     if ov and ov ~= "" then collectFromMat(Material(ov), slots, seen) end
 end
 
 if #slots == 0 then
-    print("[TexCorruptor] Nothing found.") TexCorruptor=nil return
+    print("[TexCorruptor] No DXT materials.") TexCorruptor=nil return
 end
 
--- Allocate RTs (reuse by tname+key)
 local rtCache = {}
 for _, s in ipairs(slots) do
     local rtKey = (s.tname..s.key):gsub("[^%w]","_"):sub(-32)
@@ -88,18 +116,44 @@ for _, s in ipairs(slots) do
     s.rt = rtCache[rtKey]
 end
 
-print(string.format("[TexCorruptor] %d texture slots ready. Chaos begins...", #slots))
+-- Sort slots so all clients have identical order regardless of collection sequence
+table.sort(slots, function(a, b)
+    local ka = a.tname .. "|" .. a.key
+    local kb = b.tname .. "|" .. b.key
+    return ka < kb
+end)
+
+print(string.format("[TexCorruptor] %d texture slots ready.", #slots))
 
 ------------------------------------------------------------------------
-local BLOCKS_PER_FRAME = 64  -- DXT blocks decoded+drawn per frame; tune for smoothness
+local BLOCKS_PER_FRAME = 64
 local drawQueue = {}
 
-local function corruptTick()
-    local s    = slots[math.random(1, #slots)]
+-- Receive stop from server
+net.Receive(NET_MSG_STOP, function()
+    if TexCorruptor then
+        TexCorruptor.Stop()
+        TexCorruptor = nil
+        print("[TexCorruptor] Stopped by server.")
+    end
+end)
+
+-- Receive corruption event from server
+net.Receive(NET_MSG, function()
+    local seed    = net.ReadUInt(32)
+    local slotIdx = net.ReadUInt(16)
+    local mode    = net.ReadUInt(4)
+
+    -- Use same seed so all clients pick identical random values for this event
+    math.randomseed(seed)
+    local s = slots[(slotIdx - 1) % #slots + 1]
     local info = s.info
-    info.mipData = GilbVTF.RamCorrupt(info.mipData, info.vtf)
-    print(string.format("[TexCorruptor] hit %s %s (%dx%d)", s.key, s.tname, info.width, info.height))
-    -- Store only raw mip string — no pixel table in memory
+
+    -- Corruption uses seeded random (inside RamCorrupt) so all clients corrupt identically
+    info.mipData = GilbVTF.RamCorrupt(info.mipData, info.vtf, mode)
+    print(string.format("[TexCorruptor] hit %s %s (%dx%d) mode=%d seed=%d",
+        s.key, s.tname, info.width, info.height, mode, seed))
+
     local bw = math.max(1, math.ceil(info.width  / 4))
     local bh = math.max(1, math.ceil(info.height / 4))
     table.insert(drawQueue, {
@@ -114,8 +168,7 @@ local function corruptTick()
         sx      = RT_SIZE / info.width,
         sy      = RT_SIZE / info.height,
     })
-    timer.Simple(math.random()*(TICK_MAX-TICK_MIN)+TICK_MIN, corruptTick)
-end
+end)
 
 hook.Add("PostRender", "TexCorruptor_Draw", function()
     if #drawQueue == 0 then return end
@@ -158,13 +211,12 @@ hook.Add("PostRender", "TexCorruptor_Draw", function()
     end
 end)
 
-timer.Simple(0.5, corruptTick)
-
+------------------------------------------------------------------------
 function TexCorruptor.Stop()
     hook.Remove("PostRender","TexCorruptor_Draw")
-    timer.Remove("TexCorruptor_Tick")
     for _, s in ipairs(slots) do
         s.mat:SetTexture(s.key, s.origTex)
     end
 end
+
 ]==])
