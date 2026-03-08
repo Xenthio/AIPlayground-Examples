@@ -46,7 +46,7 @@ end
 local A = HL2Hud.Anim
 local state = {
     fgColor = A.make(HL2Hud.Colors.FgColor),
-    bgColor = A.make(Color(0,0,0,0)),
+    bgColor = A.make(HL2Hud.Colors.BgColor),
     blur    = A.make(0),
 }
 local lastBald = 0
@@ -60,16 +60,28 @@ local function onBaldnessChange()
 end
 
 local baseElem = {}
-function baseElem:GetSize() local s=ScrH()/480 return 102*s, 36*s end
+function baseElem:GetSize()
+    local layout = HL2Hud.GetLayout("health")
+    local s = ScrH()/480
+    return (layout and layout.wide or 102)*s, (layout and layout.tall or 36)*s
+end
 function baseElem:Draw(x, y, clip_h)
     local bald = getBaldness()
     if bald ~= lastBald then onBaldnessChange() lastBald = bald end
     A.step(state.fgColor) A.step(state.bgColor) A.step(state.blur)
-    return HL2Hud.DrawNumericDisplay(x, y, "BALDNESS", bald, state)
+    local base = HL2Hud.GetLayout("health")
+    local layout = HL2Hud.MakeLayout("health", {
+        label     = "BALDNESS",
+        icon_char = nil,
+        text_xpos = base.text_xpos == nil and (base.icon_xpos or 8) or nil,
+        text_ypos = base.text_xpos == nil and math.max(0, (base.icon_ypos or 0)) or nil,
+    })
+    return HL2Hud.DrawElement(x, y, bald, state, layout)
 end
 
 hook.Add("HL2Hud_ColorsChanged", "BaldHud_ColorsChanged", function()
     A.snap(state.fgColor, HL2Hud.Colors.FgColor)
+    A.snap(state.bgColor, HL2Hud.Colors.BgColor)
 end)
 
 -- ---- Aux-style hair loss meter (chunked bar + funny labels) -----------------

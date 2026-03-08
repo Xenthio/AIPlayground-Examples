@@ -1,37 +1,39 @@
 -- PLAN: CLIENT, add a speedometer to the EHUD left column.
 -- Registers a new left column "speed" and sets base_element to a numeric display.
--- Shows XY velocity in units/sec. Pulses on speed change. Uses HL2Hud.Colors.
+-- Shows XY velocity in units/sec. Pulses on speed change. Uses active theme layout via MakeLayout.
 RunClientLua([==[
 local A = HL2Hud.Anim
 local C = HL2Hud.Colors
 
 local state = {
     fgColor = A.make(C.FgColor),
-    bgColor = A.make(Color(0,0,0,0)),
+    bgColor = A.make(C.BgColor),
     blur    = A.make(0),
 }
 
 local lastSpeed = -1
 
 local function onSpeedChange()
-    A.set(state.fgColor, C.BrightFg,       "Linear",  0,   0.1)
-    A.set(state.fgColor, C.FgColor,         "Deaccel", 0.1, 0.5)
-    A.set(state.bgColor, C.BgColor,         "Linear",  0,   0.1)
-    A.set(state.bgColor, Color(0,0,0,0),    "Linear",  0.1, 2.0)
-    A.set(state.blur,    1,                 "Linear",  0,   0.1)
-    A.set(state.blur,    0,                 "Deaccel", 0.1, 0.5)
+    A.set(state.fgColor, C.BrightFg,  "Linear",  0,   0.1)
+    A.set(state.fgColor, C.FgColor,   "Deaccel", 0.1, 0.5)
+    A.set(state.bgColor, C.DamagedBg, "Linear",  0,   0)
+    A.set(state.bgColor, C.BgColor,   "Deaccel", 0,   0.5)
+    A.set(state.blur,    1,           "Linear",  0,   0.1)
+    A.set(state.blur,    0,           "Deaccel", 0.1, 0.5)
 end
 
 hook.Add("HL2Hud_ColorsChanged", "SpeedHud_Colors", function()
     C = HL2Hud.Colors
     A.snap(state.fgColor, C.FgColor)
+    A.snap(state.bgColor, C.BgColor)
 end)
 
 local elem = {}
 
 function elem:GetSize()
+    local layout = HL2Hud.GetLayout("health")
     local s = ScrH() / 480
-    return 102*s, 36*s
+    return 102 * s, (layout.tall or 36) * s
 end
 
 function elem:Draw(x, y)
@@ -50,7 +52,18 @@ function elem:Draw(x, y)
         onSpeedChange()
     end
 
-    return HL2Hud.DrawNumericDisplay(x, y, "SPEED", speed, state)
+    local base = HL2Hud.GetLayout("health")
+    local hasIcon = base.icon_char ~= nil
+    local layout = HL2Hud.MakeLayout("health", {
+        label     = "SPEED",
+        icon_char = hasIcon and "D" or nil,
+        icon_font = hasIcon and "HL2Hud_WeaponIcons" or nil,
+        icon_ypos = hasIcon and ((base.icon_ypos or 0) - 11) or nil,
+        -- CSS has no text_xpos; when icon unavailable, inject label at icon position as text fallback
+        text_xpos = (not hasIcon and base.text_xpos == nil) and (base.icon_xpos or 8) or nil,
+        text_ypos = (not hasIcon and base.text_xpos == nil) and math.max(0, (base.icon_ypos or 0)) or nil,
+    })
+    return HL2Hud.DrawElement(x, y, speed, state, layout)
 end
 
 EHUD.RegisterLeftColumn("speed", 102, nil, 25)

@@ -1,7 +1,7 @@
 -- PLAN: CLIENT, HL2-style ping display using EHUD + shared GilbUtils infrastructure.
 -- Registers as a new left column (priority 30, after health=10 and suit=20).
 -- Green < 100ms, yellow 100–149ms, red >= 150ms with pulse + glow.
--- Uses HL2Hud.DrawNumericDisplay and HL2Hud.Colors for consistent theming.
+-- Uses HL2Hud.MakeLayout("health") for full theme awareness (fonts, panel style, icons).
 RunClientLua([==[
 if not EHUD then include("autorun/client/cl_extensible_hud.lua") end
 
@@ -16,7 +16,7 @@ local C = HL2Hud.Colors
 -- HL2 HUD event-driven animation state (mirrors CHudNumericDisplay)
 local state = {
     fgColor = make(C.FgColor),
-    bgColor = make(Color(0, 0, 0, 0)),
+    bgColor = make(C.BgColor),
     blur    = make(0),
 }
 
@@ -32,22 +32,22 @@ end
 
 local function onPingChange(ping)
     local col = targetColor(ping)
-    set(state.fgColor, col,              "Linear", 0, 0.4)
-    set(state.bgColor, C.BgColor,        "Linear", 0, 0.1)
-    set(state.bgColor, Color(0,0,0,0),   "Linear", 0.1, 2.0)
-    set(state.blur,    1,                "Linear", 0, 0.1)
-    set(state.blur,    0,                "Deaccel", 0.1, 2.0)
+    set(state.fgColor, col,   "Linear",  0,   0.4)
+    set(state.blur,    1,     "Linear",  0,   0.1)
+    set(state.blur,    0,     "Deaccel", 0.1, 2.0)
     if ping >= 150 then
-        -- Keep fgColor red + pulse bg while bad (re-fire every sample)
         snap(state.bgColor, C.DamagedBg)
+    else
+        set(state.bgColor, C.BgColor, "Deaccel", 0, 0.5)
     end
 end
 
 local elem = {}
 
 function elem:GetSize()
+    local layout = HL2Hud.GetLayout("health")
     local s = ScrH() / 480
-    return 102*s, 36*s
+    return (layout and layout.wide or 102) * s, (layout and layout.tall or 36) * s
 end
 
 function elem:Draw(x, y, clip_h)
@@ -68,13 +68,22 @@ function elem:Draw(x, y, clip_h)
     step(state.bgColor)
     step(state.blur)
 
-    return HL2Hud.DrawNumericDisplay(x, y, "PING", lastPing, state)
+    local base = HL2Hud.GetLayout("health")
+    local layout = HL2Hud.MakeLayout("health", {
+        label     = "PING",
+        icon_char = nil,
+        -- CSS has no text_xpos; inject label at icon position as text fallback
+        text_xpos = base.text_xpos == nil and (base.icon_xpos or 8) or nil,
+        text_ypos = base.text_xpos == nil and math.max(0, (base.icon_ypos or 0)) or nil,
+    })
+    return HL2Hud.DrawElement(x, y, lastPing, state, layout)
 end
 
 -- Hook into ColorsChanged so recoloring updates ping too
 hook.Add("HL2Hud_ColorsChanged", "PingHud_ColorsChanged", function()
     C = HL2Hud.Colors
     snap(state.fgColor, targetColor(lastPing))
+    snap(state.bgColor, C.BgColor)
 end)
 
 EHUD.RegisterLeftColumn("ping", 102, nil, 30)
