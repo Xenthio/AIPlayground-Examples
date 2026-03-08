@@ -4,6 +4,7 @@ RunSharedLua([==[
 
 local NET_MSG      = "TexCorruptor_Hit"
 local NET_MSG_STOP = "TexCorruptor_Stop"
+local NET_MSG_MATS = "TexCorruptor_Mats"
 
 ------------------------------------------------------------------------
 if SERVER then
@@ -18,18 +19,39 @@ if SERVER then
     TexCorruptorServer = true
     util.AddNetworkString(NET_MSG)
     util.AddNetworkString(NET_MSG_STOP)
+    util.AddNetworkString(NET_MSG_MATS)
 
-    local TICK_MIN = 0.5
-    local TICK_MAX = 1.5
+    local TICK_MIN = 0.1
+    local TICK_MAX = 0.5
 
-    -- Collect world material names server-side to pick from
+    -- Collect world material names server-side to pick from (deduplicated)
     local matNames = {}
-    local world = Entity(0)
-    if world and world.GetMaterials then
-        for _, name in ipairs(world:GetMaterials()) do
+    local matSeen  = {}
+    local function addMat(name)
+        if name and name ~= "" and not matSeen[name] then
+            matSeen[name] = true
             table.insert(matNames, name)
         end
     end
+
+    local world = Entity(0)
+    if world and world.GetMaterials then
+        for _, name in ipairs(world:GetMaterials()) do addMat(name) end
+    end
+    for _, ent in ipairs(ents.GetAll()) do
+        local mats = ent:GetMaterials()
+        if mats then for _, name in ipairs(mats) do addMat(name) end end
+        addMat(ent:GetMaterial())
+    end
+
+    -- Receive viewmodel material lists from clients and merge into pool
+    net.Receive(NET_MSG_MATS, function(_, ply)
+        local count = net.ReadUInt(8)
+        for i = 1, count do
+            addMat(net.ReadString())
+        end
+        print(string.format("[TexCorruptor] Received %d viewmodel mats from %s", count, ply:Nick()))
+    end)
 
     -- Also scan vgui materials — corrupting these hits UI elements
     local function scanVGUI(dir)
@@ -43,7 +65,7 @@ if SERVER then
             scanVGUI(dir..d.."/")
         end
     end
-    scanVGUI("vgui/")
+    --scanVGUI("vgui/")
     -- Fallback: just pick from common texture slots
     local texSlots = { "$basetexture", "$basetexture2", "$bumpmap", "$bumpmap2", "$detail", "$blendmodulatetexture", "$blendtexture", "$blendmasktexture", "$normalmap", "$normalmap2" }
 
@@ -90,6 +112,23 @@ include("gilbutils/vtf.lua")
 print("[TexCorruptor] Ready.")
 TexCorruptor = {}
 
+-- Send viewmodel materials to server so it can select them for corruption
+local function sendViewmodelMats()
+    local vm = LocalPlayer():GetViewModel()
+    if not IsValid(vm) then return end
+    local mats = vm:GetMaterials()
+    if not mats or #mats == 0 then return end
+    net.Start(NET_MSG_MATS)
+        net.WriteUInt(math.min(#mats, 255), 8)
+        for i = 1, math.min(#mats, 255) do
+            net.WriteString(mats[i])
+        end
+    net.SendToServer()
+end
+
+-- Wait a tick for the viewmodel to be valid
+timer.Simple(1, sendViewmodelMats)
+
 local RT_SIZE = 512
 
 -- Cache of tname+key → slot entry (built lazily on first hit)
@@ -117,7 +156,7 @@ local function getOrBuildSlot(matName, key)
     local rtKey = (tname..key):gsub("[^%w]","_"):sub(-32)
     if not rtCache[rtKey] then
         local rt = GetRenderTargetEx("TC_"..rtKey, RT_SIZE, RT_SIZE,
-            RT_SIZE_NO_CHANGE, MATERIAL_RT_DEPTH_NONE,
+            0, MATERIAL_RT_DEPTH_NONE,
             0, CREATERENDERTARGETFLAGS_HDR, IMAGE_FORMAT_RGBA8888)
         rtCache[rtKey] = rt
     end
@@ -154,27 +193,21 @@ net.Receive(NET_MSG, function()
     local bs      = info.isDXT5 and 16 or 8
     local bw      = math.max(1, math.ceil(info.width  / 4))
     local bh      = math.max(1, math.ceil(info.height / 4))
-    -- First hit: full redraw so RT isn't black under corrupted blocks
-    local bStart, bEnd
-    if not s.rtReady then
-        bStart, bEnd = 0, bw*bh - 1
-        s.rtReady = true
-    else
-        bStart = math.floor(byteStart / bs)
-        bEnd   = math.min(math.ceil((byteEnd+1) / bs), bw*bh - 1)
+
+    -- Always full redraw; draw hook reads info.mipData live (not a snapshot)
+    -- so rapid hits all stack — if already queued, skip (will read latest mipData)
+    for _, q in ipairs(drawQueue) do
+        if q.s == s then return end
     end
 
     table.insert(drawQueue, {
-        s       = s,
-        mipData = info.mipData,
-        isDXT5  = info.isDXT5,
-        bs      = bs,
-        bw      = bw, bh     = bh,
-        width   = info.width, height = info.height,
-        block   = bStart,
-        total   = bEnd + 1,
-        sx      = RT_SIZE / info.width,
-        sy      = RT_SIZE / info.height,
+        s      = s,
+        bw     = bw, bh    = bh,
+        width  = info.width, height = info.height,
+        block  = 0,
+        total  = bw * bh,
+        sx     = RT_SIZE / info.width,
+        sy     = RT_SIZE / info.height,
     })
 end)
 
@@ -187,12 +220,14 @@ hook.Add("PostRender", "TexCorruptor_Draw", function()
     cam.Start2D()
 
     local endBlock = math.min(job.block + BLOCKS_PER_FRAME - 1, job.total - 1)
+    local info = job.s.info  -- read live — always reflects latest corruption
     for bi = job.block, endBlock do
         local bx  = bi % job.bw
         local by  = math.floor(bi / job.bw)
-        local off = bi * job.bs
-        local blk = job.mipData:sub(off+1, off+job.bs)
-        if #blk < job.bs then blk = blk..string.rep("\0", job.bs-#blk) end
+        local bs  = info.isDXT5 and 16 or 8
+        local off = bi * bs
+        local blk = info.mipData:sub(off+1, off+bs)
+        if #blk < bs then blk = blk..string.rep("\0", bs-#blk) end
         local px = GilbVTF.DecodeBlock(blk, job.isDXT5)
         local pw = math.max(1, math.ceil(job.sx))
         local ph = math.max(1, math.ceil(job.sy))
