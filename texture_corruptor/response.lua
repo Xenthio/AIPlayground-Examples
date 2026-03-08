@@ -24,14 +24,28 @@ if SERVER then
 
     -- Collect world material names server-side to pick from
     local matNames = {}
-    local world = Entity(0)  -- world exists server-side too
+    local world = Entity(0)
     if world and world.GetMaterials then
         for _, name in ipairs(world:GetMaterials()) do
             table.insert(matNames, name)
         end
     end
+
+    -- Also scan vgui materials — corrupting these hits UI elements
+    local function scanVGUI(dir)
+        local files, dirs = file.Find("materials/"..dir.."*", "GAME")
+        for _, f in ipairs(files) do
+            if f:EndsWith(".vmt") then
+                table.insert(matNames, dir..f:sub(1,-5))
+            end
+        end
+        for _, d in ipairs(dirs) do
+            scanVGUI(dir..d.."/")
+        end
+    end
+    scanVGUI("vgui/")
     -- Fallback: just pick from common texture slots
-    local texSlots = { "$basetexture", "$basetexture2", "$bumpmap", "$bumpmap2", "$detail" }
+    local texSlots = { "$basetexture", "$basetexture2", "$bumpmap", "$bumpmap2", "$detail", "$blendmodulatetexture", "$blendtexture", "$blendmasktexture", "$normalmap", "$normalmap2" }
 
     if #matNames == 0 then
         print("[TexCorruptor] Server: no world materials found, stopping.")
