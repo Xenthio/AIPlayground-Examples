@@ -108,7 +108,7 @@ local function getOrBuildSlot(matName, key)
         rtCache[rtKey] = rt
     end
 
-    local slot = { mat=mat, key=key, origTex=tex, info=info, tname=tname, rt=rtCache[rtKey] }
+    local slot = { mat=mat, key=key, origTex=tex, info=info, tname=tname, rt=rtCache[rtKey], rtReady=false }
     slotCache[cacheKey] = slot
     print(string.format("[TexCorruptor] cached %s %s (%dx%d fmt=%d)", key, tname, info.width, info.height, info.fmt))
     return slot
@@ -133,20 +133,32 @@ net.Receive(NET_MSG, function()
 
     math.randomseed(seed)
     local info = s.info
-    info.mipData = GilbVTF.RamCorrupt(info.mipData, info.vtf, mode)
+    local newMip, byteStart, byteEnd = GilbVTF.RamCorrupt(info.mipData, info.vtf, mode)
+    info.mipData = newMip
     print(string.format("[TexCorruptor] hit %s %s mode=%d", key, s.tname, mode))
 
-    local bw = math.max(1, math.ceil(info.width  / 4))
-    local bh = math.max(1, math.ceil(info.height / 4))
+    local bs      = info.isDXT5 and 16 or 8
+    local bw      = math.max(1, math.ceil(info.width  / 4))
+    local bh      = math.max(1, math.ceil(info.height / 4))
+    -- First hit: full redraw so RT isn't black under corrupted blocks
+    local bStart, bEnd
+    if not s.rtReady then
+        bStart, bEnd = 0, bw*bh - 1
+        s.rtReady = true
+    else
+        bStart = math.floor(byteStart / bs)
+        bEnd   = math.min(math.ceil((byteEnd+1) / bs), bw*bh - 1)
+    end
+
     table.insert(drawQueue, {
         s       = s,
         mipData = info.mipData,
         isDXT5  = info.isDXT5,
-        bs      = info.isDXT5 and 16 or 8,
+        bs      = bs,
         bw      = bw, bh     = bh,
         width   = info.width, height = info.height,
-        block   = 0,
-        total   = bw * bh,
+        block   = bStart,
+        total   = bEnd + 1,
         sx      = RT_SIZE / info.width,
         sy      = RT_SIZE / info.height,
     })
@@ -158,7 +170,6 @@ hook.Add("PostRender", "TexCorruptor_Draw", function()
     local s   = job.s
 
     render.PushRenderTarget(s.rt)
-    if job.block == 0 then render.Clear(0,0,0,255,true,false) end
     cam.Start2D()
 
     local endBlock = math.min(job.block + BLOCKS_PER_FRAME - 1, job.total - 1)
