@@ -1,0 +1,5 @@
+{
+  "name": "texture_corruptor2",
+  "description": "Networked VTF-based RAM corruption. Writes corrupted VTF files to data/ and hotloads them for real mipmap support. Server picks textures, clients corrupt and apply.",
+  "tags": ["client", "server", "visual", "textures"]
+}
