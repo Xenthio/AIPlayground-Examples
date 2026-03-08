@@ -55,6 +55,9 @@ function elem:Draw(x, y)
     local base = HL2Hud.GetLayout("health")
     local hasIcon = base.icon_char ~= nil
     local layout = HL2Hud.MakeLayout("health", {
+        -- NOTE: `label` is the small descriptor text drawn via HL2Hud_Text font.
+        -- The numeric value (speed) is always drawn separately using layout.font (CSS_Numbers / HL2Hud_Numbers).
+        -- Do NOT put string text into the value passed to DrawElement — it only accepts numbers.
         label     = "SPEED",
         icon_char = hasIcon and "D" or nil,
         icon_font = hasIcon and "HL2Hud_WeaponIcons" or nil,
