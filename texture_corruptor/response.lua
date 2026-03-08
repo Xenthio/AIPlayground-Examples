@@ -104,7 +104,7 @@ local function getOrBuildSlot(matName, key)
     if not rtCache[rtKey] then
         local rt = GetRenderTargetEx("TC_"..rtKey, RT_SIZE, RT_SIZE,
             RT_SIZE_NO_CHANGE, MATERIAL_RT_DEPTH_NONE,
-            0x100, CREATERENDERTARGETFLAGS_HDR, IMAGE_FORMAT_RGBA8888)
+            0, CREATERENDERTARGETFLAGS_HDR, IMAGE_FORMAT_RGBA8888)
         rtCache[rtKey] = rt
     end
 
