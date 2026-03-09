@@ -44,7 +44,14 @@ if SERVER then
         if not TexCorruptor2Server then return end
         if #texNames == 0 then timer.Simple(1, serverTick) return end
         local seed    = math.random(0, 2147483647)
-        local mode    = math.random(1, 6)
+        -- Mode is picked server-side so all clients corrupt the same way.
+        -- GilbData.Corrupt supports modes 1-14 (see gilbutils/data.lua for full list).
+        -- To target specific hardware failure aesthetics, use GilbData.RandomModeFor:
+        --   GilbData.RandomModeFor("vram")              — VRAM failure (stuck bits, stride glitches, echo)
+        --   GilbData.RandomModeFor({"gpu", "bus"})      — GPU subsystem meltdown
+        --   GilbData.RandomModeFor({"disk", "ssd"})     — storage failure (sector repeat, block transpose)
+        -- Clients can also override locally with: gilbdata_force_mode vram  (or a number 1-14)
+        local mode    = math.random(1, 14)
         local texName = texNames[math.random(1, #texNames)]
         net.Start(NET_MSG)
             net.WriteUInt(seed, 32)
