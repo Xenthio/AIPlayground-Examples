@@ -69,10 +69,12 @@ if TexCorruptor2 then
     return
 end
 
+include("gilbutils/data.lua")
 include("gilbutils/vtf.lua")
 include("gilbutils/mat.lua")
 
 TexCorruptor2 = {}
+TexCorruptor2.tm = tm  -- exposed for debugging
 
 -- GilbMat.NewTexMap() — creates a deduplicated texture→refs map.
 -- tm.cache[texName] = { refs=[{mat,key,origTex},...], loaded, ... }
@@ -143,6 +145,8 @@ end)
 -- GilbMat.StopIntercept() restores the original Material() on cleanup.
 GilbMat.StartIntercept(scanner)
 scanner:Start()
+-- Expose tm for console debugging: #TexCorruptor2.tm.list, TexCorruptor2.tm.cache["name"]
+TexCorruptor2.tm = tm
 
 net.Receive(NET_MSG_STOP, function()
     if TexCorruptor2 then
@@ -178,12 +182,16 @@ net.Receive(NET_MSG, function()
     local offsets = GilbVTF.MipOffsets(info)
     local allMip  = info.allMipData
 
-    allMip = (GilbVTF.RamCorrupt(allMip, info.vtf, mode))
+    -- GilbData.Corrupt(data, allData, mode) — corrupt any binary byte string.
+    -- Works on VTF mip data, VVD vertex blocks, MDL headers, WAV audio, anything.
+    -- allData is an optional wider pool to bleed bytes from (used by mode 3: DATA BLEED).
+    -- mode 1-6 or nil for random: stride repeat, bit flip, data bleed, xor pattern, zero wipe, sprinkle.
+    allMip = (GilbData.Corrupt(allMip, info.vtf, mode))
     local numExtra = math.random(2, 3)
     for i = 1, numExtra do
         local m = offsets[math.random(1, #offsets)]
         local slice = allMip:sub(m.offset, m.offset + m.size - 1)
-        slice = (GilbVTF.RamCorrupt(slice, allMip, math.random(1, 6)))
+        slice = (GilbData.Corrupt(slice, allMip, math.random(1, 6)))
         allMip = allMip:sub(1, m.offset - 1) .. slice .. allMip:sub(m.offset + m.size)
     end
     info.allMipData = allMip
