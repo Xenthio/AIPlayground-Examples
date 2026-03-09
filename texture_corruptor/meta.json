@@ -1,5 +1,0 @@
-{
-  "prompt": "!c can you corrupt textures? just override basetexture on random materials in map every 100 ms, make sure it can decode still!",
-  "tags": "texture corrupt material override basetexture glitch visual effect map world",
-  "toolcalls": []
-}
