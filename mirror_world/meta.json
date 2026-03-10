@@ -1,0 +1,4 @@
+{
+  "prompt": "Mirror the camera and movement controls so left/right are swapped, the screen is flipped horizontally, and viewmodel bones are mirrored. Permanent until undone.",
+  "tags": "mirror flip swap horizontal left right controls camera movement viewmodel bones",
+}
