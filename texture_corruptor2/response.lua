@@ -22,8 +22,8 @@ if SERVER then
     util.AddNetworkString(NET_MSG_STOP)
     util.AddNetworkString(NET_MSG_MATS)
 
-    local TICK_MIN = 0.05
-    local TICK_MAX = 0.2
+local TICK_MIN = 0.05
+local TICK_MAX = 1.0
 
     local texNames = {}
     local texSeen  = {}
@@ -79,6 +79,8 @@ end
 include("gilbutils/data.lua")
 include("gilbutils/vtf.lua")
 include("gilbutils/mat.lua")
+include("gilbutils/mdl.lua")
+include("gilbutils/bsp.lua")
 
 TexCorruptor2 = {}
 TexCorruptor2.tm = tm  -- exposed for debugging
@@ -88,10 +90,7 @@ TexCorruptor2.tm = tm  -- exposed for debugging
 -- tm.list = ordered list of unique texture names for random picking.
 -- One entry per unique underlying texture regardless of how many materials share it.
 local tm      = GilbMat.NewTexMap()
-
--- vtfData holds texture_corruptor2-specific state per texture (file paths, parsed VTF, apply state).
--- Kept separate from tm since GilbMat is agnostic about what you do with the textures.
-local vtfData = {}   -- texName → { dataPath, matPath, info, loaded, applied }
+local vtfData      = {}   -- texName → { dataPath, matPath, info, loaded, applied }
 
 file.CreateDir("texcorrupt2")
 
@@ -138,20 +137,24 @@ local scanner = GilbMat.NewScanner(tm, onNewTex, function()
     print(string.format("[TexCorruptor2] Scan complete. %d unique textures.", #tm.list))
 end)
 
-scanner:QueueWorld()
-
--- Viewmodel
-timer.Simple(1, function()
-    if not IsValid(LocalPlayer()) then return end
-    local vm = LocalPlayer():GetViewModel()
-    if IsValid(vm) then scanner:QueueEntity(vm) end
-end)
-
--- GilbMat.StartIntercept(scanner) — overrides Material() globally so any mat loaded
--- after startup (dynamic spawns, VGUI, etc.) gets queued into the scanner automatically.
--- GilbMat.StopIntercept() restores the original Material() on cleanup.
+-- Defer BSP + world scan until after first render so materials are actually loaded in VRAM.
+-- The Material() intercept starts immediately to catch anything that loads before then.
 GilbMat.StartIntercept(scanner)
-scanner:Start()
+GilbMat.StartDecalIntercept(scanner)
+GilbMat.StartParticleIntercept(scanner)
+
+hook.Add("PostRender", "TexCorruptor2_FirstFrame", function()
+    hook.Remove("PostRender", "TexCorruptor2_FirstFrame")
+    -- Now the world has drawn at least once — materials are resident in memory
+    scanner:QueueBSP()
+    scanner:QueueWorld()
+    scanner:QueueSprites()
+    scanner:QueueCommon()
+    -- Viewmodel
+    local vm = IsValid(LocalPlayer()) and LocalPlayer():GetViewModel()
+    if IsValid(vm) then scanner:QueueEntity(vm) end
+    scanner:Start()
+end)
 
 -- Scan newly spawned entities as they arrive so their textures enter the corruption pool.
 -- The Material() intercept catches engine-driven loads, but this covers entities that
@@ -186,9 +189,9 @@ net.Receive(NET_MSG, function()
     -- Lazy VTF load + VMT write on first hit
     if not vd.loaded then
         local vtfBytes = file.Read("materials/" .. tname .. ".vtf", "GAME")
-        if not vtfBytes then print("[TexCorruptor2] VTF not found: " .. tname) return end
+        if not vtfBytes then return end  -- not on disk (UI icon, PNG, etc.)
         local info = GilbVTF.Parse(vtfBytes)
-        if not info then print("[TexCorruptor2] VTF parse failed: " .. tname) return end
+        if not info then return end  -- unsupported VTF format (DXT3, unusual version, etc.)
         file.Write(vd.dataPath .. ".vmt",
             '"UnlitGeneric"\n{\n\t"$basetexture" "' .. vd.matPath .. '"\n}\n')
         vd.info   = info
@@ -241,6 +244,8 @@ function TexCorruptor2.Stop()
     scanner:Stop()
     hook.Remove("OnEntityCreated", "TexCorruptor2_NewEnt")
     GilbMat.StopIntercept()
+    GilbMat.StopDecalIntercept()
+    GilbMat.StopParticleIntercept()
     -- GilbMat.RestoreAll() — iterates all refs in the TexMap and restores origTex on each mat+slot.
     GilbMat.RestoreAll(tm)
     print("[TexCorruptor2] Restored all textures.")
