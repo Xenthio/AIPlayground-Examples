@@ -152,6 +152,18 @@ end)
 -- GilbMat.StopIntercept() restores the original Material() on cleanup.
 GilbMat.StartIntercept(scanner)
 scanner:Start()
+
+-- Scan newly spawned entities as they arrive so their textures enter the corruption pool.
+-- The Material() intercept catches engine-driven loads, but this covers entities that
+-- spawn without immediately triggering a Material() call (e.g. off-screen spawns).
+hook.Add("OnEntityCreated", "TexCorruptor2_NewEnt", function(ent)
+    timer.Simple(0.1, function()
+        if IsValid(ent) then
+            scanner:QueueEntity(ent)
+            scanner:Start()  -- restart Think hook if it finished after initial scan
+        end
+    end)
+end)
 -- Expose tm for console debugging: #TexCorruptor2.tm.list, TexCorruptor2.tm.cache["name"]
 TexCorruptor2.tm = tm
 
@@ -227,6 +239,7 @@ end)
 ------------------------------------------------------------------------
 function TexCorruptor2.Stop()
     scanner:Stop()
+    hook.Remove("OnEntityCreated", "TexCorruptor2_NewEnt")
     GilbMat.StopIntercept()
     -- GilbMat.RestoreAll() — iterates all refs in the TexMap and restores origTex on each mat+slot.
     GilbMat.RestoreAll(tm)
